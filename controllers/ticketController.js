@@ -1,26 +1,31 @@
 const Ticket = require("../models/Ticket");
+const path = require("path");
+const fs = require("fs");
 
-// Correos con permisos de administrador
-const isAdmin = (email) =>
-  ["angel.reyes@itson.edu.mx", "vvalenzuela@itson.edu.mx"].includes(
-    email.toLowerCase()
-  );
+// GET: Tickets creados o asignados al usuario
+exports.getTickets = async (req, res) => {
+  const userEmail = req.user.email;
 
-// Crear nuevo ticket
+  try {
+    const tickets = await Ticket.find({
+      $or: [
+        { destinatario: userEmail },
+        { correoSolicitante: userEmail }
+      ],
+    }).sort({ createdAt: -1 });
+
+    res.json(tickets);
+  } catch (err) {
+    res.status(500).json({ msg: "Error al obtener tickets" });
+  }
+};
+
+// POST: Crear ticket
 exports.createTicket = async (req, res) => {
   try {
-    const {
-      nombreSolicitante,
-      correoSolicitante,
-      destinatario,
-      fechaLimite,
-      location,
-      persistentError,
-      issueType,
-      description,
-    } = req.body;
+    const { nombreSolicitante, correoSolicitante, destinatario, fechaLimite, location, persistentError, issueType, description } = req.body;
 
-    const image = req.file ? req.file.path : null;
+    const image = req.file ? req.file.path : "";
 
     const ticket = new Ticket({
       nombreSolicitante,
@@ -28,7 +33,7 @@ exports.createTicket = async (req, res) => {
       destinatario,
       fechaLimite,
       location,
-      persistentError: persistentError === "true" || persistentError === true, // string->bool
+      persistentError,
       issueType,
       description,
       image,
@@ -38,78 +43,23 @@ exports.createTicket = async (req, res) => {
     await ticket.save();
     res.status(201).json(ticket);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ msg: "Error creando ticket" });
+    res.status(500).json({ msg: "Error al crear el ticket" });
   }
 };
 
-// Obtener todos los tickets (admin ve todos, usuario solo los suyos)
-exports.getTickets = async (req, res) => {
-  try {
-
-    let tickets;
-    if (isAdmin(req.user.email)) {
-      tickets = await Ticket.find().populate("createdBy", "name email");
-    } else {
-      tickets = await Ticket.find({ createdBy: req.user.id });
-    }
-
-    res.json(tickets);
-  } catch (err) {
-    console.error("Error obteniendo tickets:", err);
-    res.status(500).json({ msg: "Error obteniendo tickets" });
-  }
-};
-
-// Obtener un ticket por ID
-exports.getTicketById = async (req, res) => {
-  try {
-    const ticket = await Ticket.findById(req.params.id).populate(
-      "createdBy",
-      "name email"
-    );
-    if (!ticket) return res.status(404).json({ msg: "Ticket no encontrado" });
-
-    const esAdmin = isAdmin(req.user.email);
-    const esDueño = ticket.createdBy._id.toString() === req.user.id;
-
-    if (!esAdmin && !esDueño) {
-      return res.status(403).json({ msg: "No autorizado" });
-    }
-
-    res.json(ticket);
-  } catch (err) {
-    console.error("Error al obtener el ticket:", err);
-    res.status(500).json({ msg: "Error al obtener el ticket" });
-  }
-};
-
-// Actualizar estado o añadir comentario
+// PUT: Actualizar estado y comentario
 exports.updateTicket = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { status, comment } = req.body;
-
-    const ticket = await Ticket.findById(id);
+    const ticket = await Ticket.findById(req.params.id);
     if (!ticket) return res.status(404).json({ msg: "Ticket no encontrado" });
 
-    const esAdmin = isAdmin(req.user.email);
-    const esDueño = ticket.createdBy.toString() === req.user.id;
-
-    if (!esAdmin && !esDueño) {
-      return res.status(403).json({ msg: "No autorizado" });
-    }
+    const { status, comment } = req.body;
 
     if (status) ticket.status = status;
-
     if (comment) {
-      if (!Array.isArray(ticket.comments)) {
-        ticket.comments = [];
-      }
-
       ticket.comments.push({
         text: comment,
-        author: req.user.email,
+        author: req.user.name || req.user.email,
         date: new Date(),
       });
     }
@@ -117,7 +67,56 @@ exports.updateTicket = async (req, res) => {
     await ticket.save();
     res.json(ticket);
   } catch (err) {
-    console.error("Error actualizando ticket:", err);
-    res.status(500).json({ msg: "Error actualizando ticket" });
+    res.status(500).json({ msg: "Error al actualizar el ticket" });
+  }
+};
+
+// GET: Exportar tickets del mes actual en CSV
+exports.exportCurrentMonth = async (req, res) => {
+  try {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+    const tickets = await Ticket.find({
+      createdAt: { $gte: start, $lte: end }
+    });
+
+    if (!tickets.length) return res.status(404).json({ msg: "No hay tickets este mes" });
+
+    const headers = [
+      "Solicitante",
+      "Correo",
+      "Destinatario",
+      "Lugar",
+      "Tipo",
+      "Fecha Límite",
+      "Estado",
+      "Fecha de Creación"
+    ];
+
+    const rows = tickets.map(t =>
+      [
+        t.nombreSolicitante,
+        t.correoSolicitante,
+        t.destinatario,
+        t.location,
+        t.issueType,
+        new Date(t.fechaLimite).toLocaleDateString(),
+        t.status,
+        new Date(t.createdAt).toLocaleDateString()
+      ].join(",")
+    );
+
+    const csv = [headers.join(","), ...rows].join("\n");
+
+    const filePath = path.join(__dirname, "../exports", `tickets-${Date.now()}.csv`);
+    fs.writeFileSync(filePath, csv);
+
+    res.download(filePath, "tickets-mes.csv", () => {
+      fs.unlink(filePath, () => {});
+    });
+  } catch (err) {
+    res.status(500).json({ msg: "Error al exportar" });
   }
 };
