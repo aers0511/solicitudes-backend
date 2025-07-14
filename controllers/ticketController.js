@@ -46,7 +46,6 @@ exports.createTicket = async (req, res) => {
 // Obtener todos los tickets (admin ve todos, usuario solo los suyos)
 exports.getTickets = async (req, res) => {
   try {
-    console.log("Usuario autenticado:", req.user); // <-- agrega esto
 
     let tickets;
     if (isAdmin(req.user.email)) {
