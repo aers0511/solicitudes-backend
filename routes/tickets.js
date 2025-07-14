@@ -1,7 +1,7 @@
 // routes/tickets.js
 const express = require("express");
 const router = express.Router();
-const upload = require("../middlewares/upload");
+const upload = require("../middleware/upload");
 const { createTicket, getTickets, getTicketById, updateTicket } = require("../controllers/ticketController");
 const authMiddleware = require("../middlewares/authMiddleware");
 
