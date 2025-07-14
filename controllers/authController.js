@@ -31,8 +31,7 @@ exports.register = async (req, res) => {
       name,
       email,
       campus,
-      password, // será hasheada por el middleware
-      avatar,
+      password,
     });
 
     await user.save();
