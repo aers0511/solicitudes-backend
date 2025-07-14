@@ -2,7 +2,6 @@ const express = require("express");
 const router = express.Router();
 const upload = require("../middlewares/upload");
 const auth = require("../middlewares/authMiddleware");
-
 const ticketController = require("../controllers/ticketController");
 
 router.get("/", auth, ticketController.getTickets);

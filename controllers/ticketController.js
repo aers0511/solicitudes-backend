@@ -76,11 +76,11 @@ exports.exportCurrentMonth = async (req, res) => {
   try {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1); // inicio mes siguiente
 
     const tickets = await Ticket.find({
-      createdAt: { $gte: start, $lte: end }
-    });
+      createdAt: { $gte: start, $lt: end }
+    }).lean();
 
     if (!tickets.length) return res.status(404).json({ msg: "No hay tickets este mes" });
 
@@ -95,28 +95,51 @@ exports.exportCurrentMonth = async (req, res) => {
       "Fecha de Creación"
     ];
 
+    // Escapa comas y comillas en texto para CSV
+    const escapeCSV = (text) => {
+      if (!text) return "";
+      const str = String(text);
+      return str.includes(",") ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+
     const rows = tickets.map(t =>
       [
-        t.nombreSolicitante,
-        t.correoSolicitante,
-        t.destinatario,
-        t.location,
-        t.issueType,
-        new Date(t.fechaLimite).toLocaleDateString(),
-        t.status,
-        new Date(t.createdAt).toLocaleDateString()
+        escapeCSV(t.nombreSolicitante),
+        escapeCSV(t.correoSolicitante),
+        escapeCSV(t.destinatario),
+        escapeCSV(t.location),
+        escapeCSV(t.issueType),
+        escapeCSV(new Date(t.fechaLimite).toLocaleDateString()),
+        escapeCSV(t.status),
+        escapeCSV(new Date(t.createdAt).toLocaleDateString())
       ].join(",")
     );
 
     const csv = [headers.join(","), ...rows].join("\n");
 
-    const filePath = path.join(__dirname, "../exports", `tickets-${Date.now()}.csv`);
+    const filename = `tickets-${now.getFullYear()}-${now.getMonth() + 1}.csv`;
+    const filePath = path.join(__dirname, "../exports", filename);
+
+    // Crear carpeta exports si no existe
+    if (!fs.existsSync(path.dirname(filePath))) {
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    }
+
     fs.writeFileSync(filePath, csv);
 
-    res.download(filePath, "tickets-mes.csv", () => {
-      fs.unlink(filePath, () => {});
+    res.download(filePath, filename, (err) => {
+      if (err) {
+        console.error("Error en descarga:", err);
+        res.status(500).end();
+      }
+      // Borra archivo tras envío
+      fs.unlink(filePath, (err) => {
+        if (err) console.error("Error borrando CSV:", err);
+      });
     });
+
   } catch (err) {
+    console.error("Error exportando tickets:", err);
     res.status(500).json({ msg: "Error al exportar" });
   }
 };
