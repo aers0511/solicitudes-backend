@@ -4,23 +4,21 @@ const TicketSchema = new mongoose.Schema({
   nombreSolicitante: String,
   correoSolicitante: String,
   destinatario: String,
-  fechaLimite: String,
+  fechaLimite: Date,
   location: String,
   persistentError: Boolean,
   issueType: String,
   description: String,
-  archivoNombre: { type: String }, // Aquí se guarda la ruta del archivo
-  status: { type: String, default: "abierto" },
+  image: String, // ruta archivo subido
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-  assignedTo: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  status: { type: String, default: "pendiente" },
   comments: [
     {
       text: String,
-      createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-      createdAt: { type: Date, default: Date.now },
+      author: String,
+      date: Date,
     },
   ],
-  createdAt: { type: Date, default: Date.now },
 });
 
 module.exports = mongoose.model("Ticket", TicketSchema);

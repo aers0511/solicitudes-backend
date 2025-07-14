@@ -2,13 +2,16 @@
 const express = require("express");
 const router = express.Router();
 const upload = require("../middleware/upload");
-const { createTicket, getTickets, getTicketById, updateTicket } = require("../controllers/ticketController");
+const {
+  createTicket,
+  getTickets,
+  getTicketById,
+  updateTicket,
+} = require("../controllers/ticketController");
 const authMiddleware = require("../middleware/authMiddleware");
 
 // Ruta para crear ticket con archivo (campo: archivo)
-router.post("/tickets", authMiddleware, upload.single("file"), createTicket);
-
-
+router.post("/", authMiddleware, upload.single("file"), createTicket);
 
 // Obtener todos los tickets del usuario autenticado
 router.get("/", authMiddleware, getTickets);

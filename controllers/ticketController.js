@@ -8,15 +8,32 @@ const isAdmin = (email) =>
 
 // Crear nuevo ticket
 exports.createTicket = async (req, res) => {
+  
   try {
-    const { title, description } = req.body;
+    const {
+      nombreSolicitante,
+      correoSolicitante,
+      destinatario,
+      fechaLimite,
+      location,
+      persistentError,
+      issueType,
+      description,
+    } = req.body;
+
     const image = req.file ? `/uploads/${req.file.filename}` : null;
 
     const ticket = new Ticket({
-      title,
+      nombreSolicitante,
+      correoSolicitante,
+      destinatario,
+      fechaLimite,
+      location,
+      persistentError: persistentError === 'true' || persistentError === true, // string->bool
+      issueType,
       description,
-      createdBy: req.user.id,
       image,
+      createdBy: req.user.id,
     });
 
     await ticket.save();
@@ -26,6 +43,7 @@ exports.createTicket = async (req, res) => {
     res.status(500).json({ msg: "Error creando ticket" });
   }
 };
+
 
 // Obtener todos los tickets (admin ve todos, usuario solo los suyos)
 exports.getTickets = async (req, res) => {
@@ -39,7 +57,7 @@ exports.getTickets = async (req, res) => {
 
     res.json(tickets);
   } catch (err) {
-    console.error(err);
+    console.error("Error obteniendo tickets:", err);
     res.status(500).json({ msg: "Error obteniendo tickets" });
   }
 };
@@ -47,7 +65,10 @@ exports.getTickets = async (req, res) => {
 // Obtener un ticket por ID
 exports.getTicketById = async (req, res) => {
   try {
-    const ticket = await Ticket.findById(req.params.id).populate("createdBy", "name email");
+    const ticket = await Ticket.findById(req.params.id).populate(
+      "createdBy",
+      "name email"
+    );
     if (!ticket) return res.status(404).json({ msg: "Ticket no encontrado" });
 
     const esAdmin = isAdmin(req.user.email);
@@ -59,7 +80,7 @@ exports.getTicketById = async (req, res) => {
 
     res.json(ticket);
   } catch (err) {
-    console.error(err);
+    console.error("Error al obtener el ticket:", err);
     res.status(500).json({ msg: "Error al obtener el ticket" });
   }
 };
@@ -81,8 +102,8 @@ exports.updateTicket = async (req, res) => {
     }
 
     if (status) ticket.status = status;
+
     if (comment) {
-      // Si el ticket ya tiene comentarios, añade uno más
       if (!Array.isArray(ticket.comments)) {
         ticket.comments = [];
       }
@@ -90,14 +111,14 @@ exports.updateTicket = async (req, res) => {
       ticket.comments.push({
         text: comment,
         author: req.user.email,
-        date: new Date()
+        date: new Date(),
       });
     }
 
     await ticket.save();
     res.json(ticket);
   } catch (err) {
-    console.error(err);
+    console.error("Error actualizando ticket:", err);
     res.status(500).json({ msg: "Error actualizando ticket" });
   }
 };

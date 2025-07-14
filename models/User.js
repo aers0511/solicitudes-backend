@@ -5,7 +5,7 @@ const UserSchema = new mongoose.Schema({
   name: String,
   email: { type: String, unique: true, lowercase: true },
   campus: String,
-  password: String,
+  password: { type: String, select: false }, // No se incluye por defecto
   role: { type: String, default: "user" }, // user/admin
   avatar: { type: String, default: null }, // ruta imagen opcional
 });
@@ -17,6 +17,7 @@ UserSchema.pre("save", async function (next) {
 });
 
 UserSchema.methods.comparePassword = function (password) {
+  if (!this.password) return Promise.resolve(false);
   return bcrypt.compare(password, this.password);
 };
 

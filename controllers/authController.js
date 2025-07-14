@@ -1,7 +1,5 @@
 const jwt = require("jsonwebtoken");
-const bcrypt = require("bcrypt");
 const User = require("../models/User");
-const path = require("path");
 
 const generateToken = (user) => {
   return jwt.sign(
@@ -35,7 +33,7 @@ exports.register = async (req, res) => {
       name,
       email,
       campus,
-      password,
+      password, // será hasheada por el middleware
       avatar,
     });
 
@@ -54,14 +52,19 @@ exports.login = async (req, res) => {
     let { email, password } = req.body;
     email = email.trim().toLowerCase();
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ msg: "Correo invalido" });
-    }
-    const isMatch = await bcrypt.compare(password, user.password);
+    // Traemos explícitamente el campo password (porque en el esquema está con select: false)
+    const user = await User.findOne({ email }).select("+password");
 
+    if (!user) {
+      return res.status(401).json({ msg: "Correo inválido" });
+    }
+
+    // Usamos el método comparePassword que definiste en el modelo
+
+    
+    const isMatch = await user.comparePassword(password);
     if (!isMatch) {
-      return res.status(401).json({ msg: "Contraseña invalida" });
+      return res.status(401).json({ msg: "Contraseña inválida" });
     }
 
     const token = generateToken(user);
