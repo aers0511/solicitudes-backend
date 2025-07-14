@@ -22,7 +22,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Registro con imagen avatar
-router.post("/register", upload.single("avatar"), register);
+router.post("/register", register);
 
 // Login
 router.post("/login", login);

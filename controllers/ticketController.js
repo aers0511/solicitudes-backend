@@ -8,7 +8,6 @@ const isAdmin = (email) =>
 
 // Crear nuevo ticket
 exports.createTicket = async (req, res) => {
-  
   try {
     const {
       nombreSolicitante,
@@ -21,7 +20,7 @@ exports.createTicket = async (req, res) => {
       description,
     } = req.body;
 
-    const image = req.file ? `/uploads/${req.file.filename}` : null;
+    const image = req.file ? req.file.path : null;
 
     const ticket = new Ticket({
       nombreSolicitante,
@@ -29,7 +28,7 @@ exports.createTicket = async (req, res) => {
       destinatario,
       fechaLimite,
       location,
-      persistentError: persistentError === 'true' || persistentError === true, // string->bool
+      persistentError: persistentError === "true" || persistentError === true, // string->bool
       issueType,
       description,
       image,
@@ -43,7 +42,6 @@ exports.createTicket = async (req, res) => {
     res.status(500).json({ msg: "Error creando ticket" });
   }
 };
-
 
 // Obtener todos los tickets (admin ve todos, usuario solo los suyos)
 exports.getTickets = async (req, res) => {

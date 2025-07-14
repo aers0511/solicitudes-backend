@@ -3,8 +3,6 @@ const jwt = require("jsonwebtoken");
 module.exports = function (req, res, next) {
   const authHeader = req.get("Authorization");
 
-  console.log("Authorization Header:", req.headers.authorization);
-
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ msg: "Token requerido" });
   }
