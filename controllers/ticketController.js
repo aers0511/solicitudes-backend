@@ -8,7 +8,7 @@ const isAdmin = (email) =>
 exports.createTicket = async (req, res) => {
   try {
     const { title, description } = req.body;
-    const images = req.files.map((file) => `/uploads/${file.filename}`);
+    const images = req.file ? `/uploads/${file.filename}`: null;
 
     const ticket = new Ticket({
       title,

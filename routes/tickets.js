@@ -1,33 +1,21 @@
+// routes/tickets.js
 const express = require("express");
 const router = express.Router();
-const multer = require("multer");
-const path = require("path");
-const {
-  createTicket,
-  getTickets,
-  updateTicket,
-} = require("../controllers/ticketController");
-const authMiddleware = require("../middleware/authMiddleware");
+const upload = require("../middlewares/upload");
+const { createTicket, getTickets, getTicketById, updateTicket } = require("../controllers/ticketController");
+const authMiddleware = require("../middlewares/authMiddleware");
 
-// Configuración multer para subir imágenes (varias)
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
-    const ext = path.extname(file.originalname);
-    cb(null, Date.now() + ext);
-  },
-});
-const upload = multer({ storage });
+// Ruta para crear ticket con archivo (campo: archivo)
+router.post("/tickets", auth, upload.single("file"), createTicket);
 
-// Crear ticket con imágenes (protegido)
-router.post("/", authMiddleware, upload.array("images", 5), createTicket);
 
-// Obtener tickets (protegido)
+// Obtener todos los tickets del usuario autenticado
 router.get("/", authMiddleware, getTickets);
 
-// Actualizar ticket (protegido)
+// Obtener un ticket por ID
+router.get("/:id", authMiddleware, getTicketById);
+
+// Actualizar un ticket (por ejemplo para marcar como resuelto o añadir comentario)
 router.put("/:id", authMiddleware, updateTicket);
 
 module.exports = router;

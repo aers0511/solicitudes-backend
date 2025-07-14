@@ -58,7 +58,6 @@ exports.login = async (req, res) => {
     if (!user) {
       return res.status(401).json({ msg: "Correo invalido" });
     }
-
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
