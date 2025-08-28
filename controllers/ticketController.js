@@ -1,6 +1,12 @@
 const Ticket = require("../models/Ticket");
 const path = require("path");
 const fs = require("fs");
+const { sendEmail } = require("../services/emailService");
+
+// Templates de correo
+const ticketCreatedTemplate = require("../templates/ticketCreated");
+const ticketAssignedTemplate = require("../templates/ticketAssigned");
+const ticketUpdatedTemplate = require("../templates/ticketUpdated");
 
 // GET: Tickets creados o asignados al usuario
 exports.getTickets = async (req, res) => {
@@ -41,8 +47,25 @@ exports.createTicket = async (req, res) => {
     });
 
     await ticket.save();
+
+    // ✉️ Correos
+    await sendEmail(
+      correoSolicitante,
+      "Tu ticket fue creado",
+      `Hola ${nombreSolicitante}, tu ticket ha sido registrado.`,
+      ticketCreatedTemplate(nombreSolicitante, issueType)
+    );
+
+    await sendEmail(
+      destinatario,
+      "Nuevo ticket asignado",
+      `Tienes un nuevo ticket de ${nombreSolicitante}`,
+      ticketAssignedTemplate(nombreSolicitante, issueType, description)
+    );
+
     res.status(201).json(ticket);
   } catch (err) {
+    console.error("Error al crear el ticket:", err);
     res.status(500).json({ msg: "Error al crear el ticket" });
   }
 };
@@ -65,8 +88,18 @@ exports.updateTicket = async (req, res) => {
     }
 
     await ticket.save();
+
+    // ✉️ Notificar al solicitante
+    await sendEmail(
+      ticket.correoSolicitante,
+      "Actualización en tu ticket",
+      `El estado de tu ticket ahora es: ${ticket.status}`,
+      ticketUpdatedTemplate(ticket.nombreSolicitante, ticket.status)
+    );
+
     res.json(ticket);
   } catch (err) {
+    console.error("Error al actualizar el ticket:", err);
     res.status(500).json({ msg: "Error al actualizar el ticket" });
   }
 };
@@ -95,7 +128,7 @@ exports.exportCurrentMonth = async (req, res) => {
       "Fecha de Creación"
     ];
 
-    // Escapa comas y comillas en texto para CSV
+    // Escapar comas y comillas en texto para CSV
     const escapeCSV = (text) => {
       if (!text) return "";
       const str = String(text);
