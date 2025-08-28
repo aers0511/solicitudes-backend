@@ -1,9 +1,11 @@
 const Ticket = require("../models/Ticket");
 const path = require("path");
 const fs = require("fs");
-const { sendEmail } = require("../services/emailService");
 
-// Templates de correo
+// 🔹 Asegúrate de que este archivo existe en src/services/emailService.js
+const { sendEmail } = require("../services/");
+
+// 🔹 Templates de correo, asegurarte de que están en src/templates/
 const ticketCreatedTemplate = require("../templates/ticketCreated");
 const ticketAssignedTemplate = require("../templates/ticketAssigned");
 const ticketUpdatedTemplate = require("../templates/ticketUpdated");
@@ -22,6 +24,7 @@ exports.getTickets = async (req, res) => {
 
     res.json(tickets);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ msg: "Error al obtener tickets" });
   }
 };
@@ -48,20 +51,24 @@ exports.createTicket = async (req, res) => {
 
     await ticket.save();
 
-    // ✉️ Correos
-    await sendEmail(
-      correoSolicitante,
-      "Tu ticket fue creado",
-      `Hola ${nombreSolicitante}, tu ticket ha sido registrado.`,
-      ticketCreatedTemplate(nombreSolicitante, issueType)
-    );
+    // ✉️ Envío de correos
+    if (correoSolicitante) {
+      await sendEmail(
+        correoSolicitante,
+        "Tu ticket fue creado",
+        `Hola ${nombreSolicitante}, tu ticket ha sido registrado.`,
+        ticketCreatedTemplate(nombreSolicitante, issueType)
+      );
+    }
 
-    await sendEmail(
-      destinatario,
-      "Nuevo ticket asignado",
-      `Tienes un nuevo ticket de ${nombreSolicitante}`,
-      ticketAssignedTemplate(nombreSolicitante, issueType, description)
-    );
+    if (destinatario) {
+      await sendEmail(
+        destinatario,
+        "Nuevo ticket asignado",
+        `Tienes un nuevo ticket de ${nombreSolicitante}`,
+        ticketAssignedTemplate(nombreSolicitante, issueType, description)
+      );
+    }
 
     res.status(201).json(ticket);
   } catch (err) {
@@ -89,13 +96,15 @@ exports.updateTicket = async (req, res) => {
 
     await ticket.save();
 
-    // ✉️ Notificar al solicitante
-    await sendEmail(
-      ticket.correoSolicitante,
-      "Actualización en tu ticket",
-      `El estado de tu ticket ahora es: ${ticket.status}`,
-      ticketUpdatedTemplate(ticket.nombreSolicitante, ticket.status)
-    );
+    // ✉️ Notificar al solicitante solo si existe correo
+    if (ticket.correoSolicitante) {
+      await sendEmail(
+        ticket.correoSolicitante,
+        "Actualización en tu ticket",
+        `El estado de tu ticket ahora es: ${ticket.status}`,
+        ticketUpdatedTemplate(ticket.nombreSolicitante, ticket.status)
+      );
+    }
 
     res.json(ticket);
   } catch (err) {
@@ -109,7 +118,7 @@ exports.exportCurrentMonth = async (req, res) => {
   try {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1); // inicio mes siguiente
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
     const tickets = await Ticket.find({
       createdAt: { $gte: start, $lt: end }
@@ -128,7 +137,6 @@ exports.exportCurrentMonth = async (req, res) => {
       "Fecha de Creación"
     ];
 
-    // Escapar comas y comillas en texto para CSV
     const escapeCSV = (text) => {
       if (!text) return "";
       const str = String(text);
@@ -153,7 +161,6 @@ exports.exportCurrentMonth = async (req, res) => {
     const filename = `tickets-${now.getFullYear()}-${now.getMonth() + 1}.csv`;
     const filePath = path.join(__dirname, "../exports", filename);
 
-    // Crear carpeta exports si no existe
     if (!fs.existsSync(path.dirname(filePath))) {
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
     }
@@ -165,7 +172,6 @@ exports.exportCurrentMonth = async (req, res) => {
         console.error("Error en descarga:", err);
         res.status(500).end();
       }
-      // Borra archivo tras envío
       fs.unlink(filePath, (err) => {
         if (err) console.error("Error borrando CSV:", err);
       });
