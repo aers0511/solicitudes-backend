@@ -3,7 +3,7 @@ const path = require("path");
 const fs = require("fs");
 
 // 🔹 Asegúrate de que este archivo existe en src/services/emailService.js
-const { sendEmail } = require("../services/");
+const  sendEmail  = require("../services/emailService");
 
 // 🔹 Templates de correo, asegurarte de que están en src/templates/
 const ticketCreatedTemplate = require("../templates/ticketCreated");
