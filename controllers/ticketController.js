@@ -21,7 +21,7 @@ exports.getTickets = async (req, res) => {
     })
       // Seleccionamos solo los campos necesarios, incluyendo numeroTicket
       .select(
-        "numeroTicket nombreSolicitante correoSolicitante destinatario fechaLimite ubicacion tipoDeError descripcion estatus comentarios"
+        "numeroTicket nombreSolicitante correoSolicitante persistente destinatario fechaLimite ubicacion tipoDeError descripcion estatus comentarios"
       )
       .sort({ createdAt: -1 }); // Orden descendente por fecha de creación
 
