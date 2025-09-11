@@ -1,74 +1,121 @@
 const Ticket = require("../models/Ticket");
-const path = require("path");
-const fs = require("fs");
-
-// 🔹 Asegúrate de que este archivo existe en src/services/emailService.js
 const { sendEmail } = require("../services/emailService");
+const generarTicket = require("../middlewares/generarTicket");
 
-// 🔹 Templates de correo, asegurarte de que están en src/templates/
+// Templates de correo
 const ticketCreatedTemplate = require("../templates/ticketCreated");
 const ticketAssignedTemplate = require("../templates/ticketAssigned");
 const ticketUpdatedTemplate = require("../templates/ticketUpdated");
 
-// GET: Tickets creados o asignados al usuario
+/**
+ * GET: Obtener tickets del usuario autenticado
+ * Devuelve todos los tickets donde el usuario es solicitante o destinatario
+ */
 exports.getTickets = async (req, res) => {
   const userEmail = req.user.email;
 
   try {
+    // Buscar tickets por correo del solicitante o destinatario
     const tickets = await Ticket.find({
-      $or: [
-        { destinatario: userEmail },
-        { correoSolicitante: userEmail }
-      ],
-    }).sort({ createdAt: -1 });
+      $or: [{ destinatario: userEmail }, { correoSolicitante: userEmail }],
+    })
+      // Seleccionamos solo los campos necesarios, incluyendo numeroTicket
+      .select(
+        "numeroTicket nombreSolicitante correoSolicitante destinatario fechaLimite ubicacion tipoDeError descripcion estatus comentarios"
+      )
+      .sort({ createdAt: -1 }); // Orden descendente por fecha de creación
 
-    res.json(tickets);
+    // Devolver los tickets al frontend/Postman
+    res.status(200).json(tickets);
   } catch (err) {
-    console.error(err);
+    console.error("Error al obtener tickets:", err);
     res.status(500).json({ msg: "Error al obtener tickets" });
   }
 };
 
-// POST: Crear ticket
+/**
+ * POST: Crear un nuevo ticket
+ * Genera un numeroTicket, calcula la fecha límite considerando días hábiles
+ * y envía correos de notificación al solicitante y destinatario
+ */
 exports.createTicket = async (req, res) => {
   try {
-    const { nombreSolicitante, correoSolicitante, destinatario, fechaLimite, location, persistentError, issueType, description } = req.body;
+    const {
+      nombreSolicitante,
+      correoSolicitante,
+      destinatario,
+      ubicacion, // ahora se envía desde el frontend
+      persistente,
+      tipoDeError,
+      descripcion,
+    } = req.body;
 
-    const image = req.file ? req.file.path : "";
+    if (
+      !nombreSolicitante ||
+      !correoSolicitante ||
+      !tipoDeError ||
+      !descripcion
+    ) {
+      return res.status(400).json({ msg: "Campos obligatorios incompletos." });
+    }
+
+    const { ticket: numeroTicket, fechaLimite } = generarTicket();
+
+    const imagen = req.file ? req.file.path : "";
+
+    // Determinar ubicación final según destinatario
+    let ubicacionFinal = "";
+    if (destinatario === "vvalenzuela@itson.edu.mx") {
+      ubicacionFinal = req.user.campus || "No especificado";
+    } else {
+      ubicacionFinal = ubicacion || "No especificado";
+    }
 
     const ticket = new Ticket({
+      numeroTicket,
       nombreSolicitante,
       correoSolicitante,
       destinatario,
       fechaLimite,
-      location,
-      persistentError,
-      issueType,
-      description,
-      image,
-      createdBy: req.user.id,
+      ubicacion: ubicacionFinal,
+      persistente: persistente || false,
+      tipoDeError,
+      descripcion,
+      imagen,
+      creadoPor: req.user.id,
     });
 
     await ticket.save();
 
-    // ✉️ Envío de correos
+    const emails = [];
     if (correoSolicitante) {
-      await sendEmail(
-        correoSolicitante,
-        "Tu ticket fue creado",
-        `Hola ${nombreSolicitante}, tu ticket ha sido registrado.`,
-        ticketCreatedTemplate(nombreSolicitante, issueType)
+      emails.push(
+        sendEmail(
+          correoSolicitante,
+          "Tu solicitud fue creada",
+          `Hola ${nombreSolicitante}, tu solicitud ha sido registrada.`,
+          ticketCreatedTemplate(nombreSolicitante, tipoDeError)
+        )
       );
     }
 
     if (destinatario) {
-      await sendEmail(
-        destinatario,
-        "Nuevo ticket asignado",
-        `Tienes un nuevo ticket de ${nombreSolicitante}`,
-        ticketAssignedTemplate(nombreSolicitante, issueType, description)
+      emails.push(
+        sendEmail(
+          destinatario,
+          "Nueva solicitud asignada",
+          `Tienes una nueva solicitud de ${nombreSolicitante}`,
+          ticketAssignedTemplate(nombreSolicitante, tipoDeError, descripcion)
+        )
       );
     }
+
+    Promise.allSettled(emails).then((results) => {
+      results.forEach((r, i) => {
+        if (r.status === "rejected")
+          console.error(`Error enviando correo ${i}:`, r.reason);
+      });
+    });
 
     res.status(201).json(ticket);
   } catch (err) {
@@ -77,108 +124,47 @@ exports.createTicket = async (req, res) => {
   }
 };
 
-// PUT: Actualizar estado y comentario
+/**
+ * PUT: Actualizar estado del ticket y agregar comentarios
+ * @param {string} req.params.id - ID del ticket a actualizar
+ * @param {string} req.body.status - Nuevo estado del ticket (opcional)
+ * @param {string} req.body.comment - Comentario adicional (opcional)
+ */
 exports.updateTicket = async (req, res) => {
   try {
+    // Buscar ticket por ID
     const ticket = await Ticket.findById(req.params.id);
     if (!ticket) return res.status(404).json({ msg: "Ticket no encontrado" });
 
-    const { status, comment } = req.body;
+    const { estatus, comentarios } = req.body;
 
-    if (status) ticket.status = status;
-    if (comment) {
-      ticket.comments.push({
-        text: comment,
-        author: req.user.name || req.user.email,
-        date: new Date(),
-      });
+    // Actualizar estado si se envió
+    if (estatus) ticket.estatus = estatus;
+
+    // Agregar comentario si se envió
+    if (comentarios) {
+      ticket.comentarios = comentarios;
     }
 
+    // Guardar cambios en la base de datos
     await ticket.save();
 
-    // ✉️ Notificar al solicitante solo si existe correo
+    // Enviar notificación al solicitante (si tiene correo)
     if (ticket.correoSolicitante) {
-      await sendEmail(
+      sendEmail(
         ticket.correoSolicitante,
-        "Actualización en tu ticket",
-        `El estado de tu ticket ahora es: ${ticket.status}`,
-        ticketUpdatedTemplate(ticket.nombreSolicitante, ticket.status)
+        "Actualización en tu solicitud",
+        `El estado de tu solicitud ahora es: ${ticket.estatus}`,
+        ticketUpdatedTemplate(ticket.nombreSolicitante, ticket.estatus)
+      ).catch((err) =>
+        console.error("Error enviando correo de actualización:", err)
       );
     }
 
-    res.json(ticket);
+    // Devolver ticket actualizado al frontend
+    res.status(200).json(ticket);
   } catch (err) {
     console.error("Error al actualizar el ticket:", err);
     res.status(500).json({ msg: "Error al actualizar el ticket" });
-  }
-};
-
-// GET: Exportar tickets del mes actual en CSV
-exports.exportCurrentMonth = async (req, res) => {
-  try {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-
-    const tickets = await Ticket.find({
-      createdAt: { $gte: start, $lt: end }
-    }).lean();
-
-    if (!tickets.length) return res.status(404).json({ msg: "No hay tickets este mes" });
-
-    const headers = [
-      "Solicitante",
-      "Correo",
-      "Destinatario",
-      "Lugar",
-      "Tipo",
-      "Fecha Límite",
-      "Estado",
-      "Fecha de Creación"
-    ];
-
-    const escapeCSV = (text) => {
-      if (!text) return "";
-      const str = String(text);
-      return str.includes(",") ? `"${str.replace(/"/g, '""')}"` : str;
-    };
-
-    const rows = tickets.map(t =>
-      [
-        escapeCSV(t.nombreSolicitante),
-        escapeCSV(t.correoSolicitante),
-        escapeCSV(t.destinatario),
-        escapeCSV(t.location),
-        escapeCSV(t.issueType),
-        escapeCSV(new Date(t.fechaLimite).toLocaleDateString()),
-        escapeCSV(t.status),
-        escapeCSV(new Date(t.createdAt).toLocaleDateString())
-      ].join(",")
-    );
-
-    const csv = [headers.join(","), ...rows].join("\n");
-
-    const filename = `tickets-${now.getFullYear()}-${now.getMonth() + 1}.csv`;
-    const filePath = path.join(__dirname, "../exports", filename);
-
-    if (!fs.existsSync(path.dirname(filePath))) {
-      fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    }
-
-    fs.writeFileSync(filePath, csv);
-
-    res.download(filePath, filename, (err) => {
-      if (err) {
-        console.error("Error en descarga:", err);
-        res.status(500).end();
-      }
-      fs.unlink(filePath, (err) => {
-        if (err) console.error("Error borrando CSV:", err);
-      });
-    });
-
-  } catch (err) {
-    console.error("Error exportando tickets:", err);
-    res.status(500).json({ msg: "Error al exportar" });
   }
 };

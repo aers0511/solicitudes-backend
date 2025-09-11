@@ -1,7 +1,7 @@
 require("dotenv").config();
 const nodemailer = require("nodemailer");
 
-// 🔹 Configuración del transporte de Nodemailer para Gmail
+// Configuración del transporte de Nodemailer para Gmail
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
@@ -10,7 +10,7 @@ const transporter = nodemailer.createTransport({
   },
 });
 
-// 🔹 Función para enviar correos
+// Función para enviar correos
 async function sendEmail(to, subject, text, html) {
   try {
     return await transporter.sendMail({

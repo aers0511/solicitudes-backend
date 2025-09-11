@@ -7,7 +7,7 @@ const {
 } = require("../controllers/authController");
 const authMiddleware = require("../middlewares/authMiddleware");
 
-// Registro con imagen avatar
+// Registro 
 router.post("/register", register);
 
 // Login

@@ -21,7 +21,7 @@ mongoose
   .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("MongoDB conectado");
-    app.listen(PORT, () => console.log(`Servidor en puerto http://localhost:${PORT}`));
+    app.listen(PORT, () => console.log(`Servidor en puerto http://localhost:${PORT}/api`));
   })
   .catch((error) => {
     console.error("Error conectando a MongoDB:", error);
