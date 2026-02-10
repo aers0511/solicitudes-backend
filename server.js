@@ -5,25 +5,25 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 require("dotenv").config();
 
-app.use(
-  cors({
-    origin: "https://solicitudes-frontend.vercel.app",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  })
-);
+// 🔹 CORS SIEMPRE PRIMERO
+const corsOptions = {
+  origin: "https://solicitudes-frontend.vercel.app",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+  optionsSuccessStatus: 204,
+};
 
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+
+// 🔹 Middlewares
 app.use(express.json());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-const authRoutes = require("./routes/auth");
-const ticketRoutes = require("./routes/tickets");
-
-app.use("/api/auth", authRoutes);
-app.use("/api/tickets", ticketRoutes);
-
-// ❌ ELIMINADO: app.options("*", cors());
+// 🔹 Rutas
+app.use("/api/auth", require("./routes/auth"));
+app.use("/api/tickets", require("./routes/tickets"));
 
 const PORT = process.env.PORT || 4000;
 
@@ -35,6 +35,4 @@ mongoose
       console.log(`Servidor en puerto ${PORT}`)
     );
   })
-  .catch((error) => {
-    console.error("Error conectando a MongoDB:", error);
-  });
+  .catch(console.error);
